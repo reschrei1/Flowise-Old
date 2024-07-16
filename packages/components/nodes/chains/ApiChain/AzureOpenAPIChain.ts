@@ -6,6 +6,7 @@ import { ConsoleCallbackHandler, CustomChainHandler, additionalCallbacks } from 
 import { checkInputs, Moderation, streamResponse } from '../../moderation/Moderation'
 import { formatResponse } from '../../outputparsers/OutputParserHelpers'
 import { getFileFromStorage } from '../../../src'
+import { getInputVariables, handleEscapeCharacters } from '../../../src/utils'
 
 class AzureOpenApiChain_Chains implements INode {
     label: string
@@ -61,6 +62,14 @@ class AzureOpenApiChain_Chains implements INode {
                 type: 'Moderation',
                 optional: true,
                 list: true
+            },
+            {
+                label: 'Format Prompt Values',
+                name: 'promptValues',
+                type: 'json',
+                optional: true,
+                acceptVariable: true,
+                list: true
             }
         ]
     }
@@ -74,6 +83,8 @@ class AzureOpenApiChain_Chains implements INode {
         const loggerHandler = new ConsoleCallbackHandler(options.logger)
         const callbacks = await additionalCallbacks(nodeData, options)
         const moderations = nodeData.inputs?.inputModeration as Moderation[]
+
+        console.info('run called: ', chain.getName)
         if (moderations && moderations.length > 0) {
             try {
                 // Use the output of the moderation chain as input for the OpenAPI chain
@@ -100,6 +111,18 @@ const initChain = async (nodeData: INodeData, options: ICommonObject) => {
     const headers = nodeData.inputs?.headers as string
     const yamlLink = nodeData.inputs?.yamlLink as string
     const yamlFileBase64 = nodeData.inputs?.yamlFile as string
+    const promptValuesStr = nodeData.inputs?.promptValues
+    let workerInputVariablesValues: ICommonObject = {}
+    if (promptValuesStr) {
+        try {
+            workerInputVariablesValues = typeof promptValuesStr === 'object' ? promptValuesStr : JSON.parse(promptValuesStr)
+        } catch (exception) {
+            throw new Error("Invalid JSON in the Worker's Prompt Input Values: " + exception)
+        }
+    }
+    workerInputVariablesValues = handleEscapeCharacters(workerInputVariablesValues, true)
+    let str = JSON.stringify(workerInputVariablesValues)
+    console.info('workerInputVariablesValues: ' + str)
 
     let yamlString = ''
 
